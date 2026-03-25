@@ -425,11 +425,11 @@ class Agent:
         recent_calls: list[str] = []
 
         while True:
-            response = ollama.chat(
+            response = await asyncio.get_event_loop().run_in_executor(None, lambda: ollama.chat(
                 model=MODEL,
                 messages=self.messages,
                 tools=self.all_tools,
-            )
+            ))
 
             msg = response.message
             self.messages.append(msg)
