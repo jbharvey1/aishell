@@ -1,0 +1,14 @@
+{
+  "name": "AIShell / Alfred",
+  "description": "Local AI assistant with native iOS client — no cloud, no subscriptions",
+  "theme": {
+    "primaryColor": "#6B21A8"
+  },
+  "sidebar": [
+    { "title": "Overview", "href": "/" },
+    { "title": "REST API", "href": "/#rest-api" },
+    { "title": "iOS App (AlfredChat)", "href": "/#ios-app-alfredchat" },
+    { "title": "Testing", "href": "/#testing" },
+    { "title": "iOS App Details", "href": "/ios/README" }
+  ]
+}

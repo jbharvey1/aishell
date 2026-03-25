@@ -1,0 +1,8 @@
+logs/
+.alfred_history
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.env
+.claude/

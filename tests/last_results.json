@@ -1,0 +1,41 @@
+{
+  "timestamp": "2026-03-24 13:16:25",
+  "model": "qwen3-coder:30b",
+  "total_time_s": 17.2,
+  "summary": {
+    "pass": 4,
+    "fail": 0,
+    "warn": 0,
+    "skip": 0
+  },
+  "tests": [
+    {
+      "id": 1,
+      "category": "Basic Tool Use",
+      "status": "\u2713 PASS",
+      "elapsed_s": 2.4,
+      "notes": ""
+    },
+    {
+      "id": 2,
+      "category": "Basic Tool Use",
+      "status": "\u2713 PASS",
+      "elapsed_s": 2.6,
+      "notes": ""
+    },
+    {
+      "id": 4,
+      "category": "Multi-Step",
+      "status": "\u2713 PASS",
+      "elapsed_s": 9.3,
+      "notes": ""
+    },
+    {
+      "id": 14,
+      "category": "Personality",
+      "status": "\u2713 PASS",
+      "elapsed_s": 2.8,
+      "notes": ""
+    }
+  ]
+}
