@@ -1,12 +1,12 @@
 # AIShell / Alfred
 
-A local AI assistant built from scratch — no black-box frameworks. Every layer (agent loop, tool integration, safety, system prompt, REST API, iOS client) is hand-built for full control and transparency.
+A local AI assistant built from scratch — no black-box frameworks. Every layer (agent loop, tool integration, safety, system prompt, REST API, terminal client, iOS client) is hand-built for full control and transparency.
 
 ## Overview
 
 Alfred is a Python AI assistant (agent.py) that runs as a local HTTP server. It connects to external tools through the Model Context Protocol (MCP), executes multi-step tasks autonomously, and enforces a safety layer that gates destructive actions, validates paths, detects loops, and logs every tool call to an audit trail.
 
-A native iOS/iPadOS chat client (AlfredChat) connects to Alfred over REST — no cloud, no subscriptions, fully local.
+A native iOS/iPadOS chat client (AlfredChat) and a standalone terminal client (alfred_tui.py) both connect to Alfred over REST — no cloud, no subscriptions, fully local.
 
 ```
 +---------------------------------------------------+
@@ -41,6 +41,7 @@ A native iOS/iPadOS chat client (AlfredChat) connects to Alfred over REST — no
 - **Safety layer** — destructive action confirmation, path validation, blocked tool list, loop detection, result truncation
 - **Audit logging** — every tool call, confirmation, and response logged to JSONL
 - **Intelligent terminal UI** — command history, auto-suggest, tab completion, markdown rendering, colored output
+- **Terminal client** — `alfred_tui.py` connects to Alfred from any machine over REST, same TUI with no local LLM required
 - **48 automated tests** — 19 Python integration tests + 29 Swift unit tests
 
 ## Requirements
@@ -148,6 +149,58 @@ Content-Type: application/json
 
 All endpoints require `Authorization: Bearer <key>`. The key is configured via `MCP_API_KEY` in agent.py.
 An IP allowlist (`MCP_ALLOWED_IPS`) provides a second layer of access control.
+
+## Terminal Client (alfred_tui.py)
+
+A standalone terminal client that connects to Alfred over REST. Same prompt_toolkit + rich TUI as `agent.py` — no local LLM, no MCP servers required. Run it on any machine on the same network.
+
+```bash
+# Mac
+python alfred_tui.py
+
+# Remote machine (e.g. Windows pointing at Mac)
+python alfred_tui.py --host 192.168.1.40 --port 8422
+
+# Quiet mode (plain text, no markdown panels)
+python alfred_tui.py --quiet
+```
+
+### Configuration
+
+Reads from `alfred_tui.env` (alongside the script) or environment variables:
+
+| Variable | Default | Description |
+|---|---|---|
+| `ALFRED_API_KEY` | `change-me` | Bearer token — must match server |
+| `ALFRED_HOST` | `127.0.0.1` | Alfred server hostname or IP |
+| `ALFRED_PORT` | `8422` | Alfred server port |
+
+### Commands
+
+| Command | Description |
+|---|---|
+| `/verbose` | Full markdown panel rendering (default) |
+| `/quiet` | Plain text output only |
+| `/reconnect` | Re-ping Alfred health check |
+| `/clear` | Clear screen |
+| `/help` | Show command reference |
+| `quit` / `exit` | Exit |
+
+### Windows
+
+A `alfred.bat` launcher in `C:\ai\` handles UTF-8 encoding automatically:
+
+```
+alfred.bat
+```
+
+### Dependencies
+
+```bash
+pip install httpx prompt_toolkit rich python-dotenv
+```
+
+`httpx`, `rich`, and `python-dotenv` are already in the standard venv — only `prompt_toolkit` may need installing depending on your setup.
 
 ## iOS App (AlfredChat)
 
@@ -374,6 +427,7 @@ Key constants in `agent.py`:
 ```
 aishell/
 +-- agent.py              # Main agent -- CLI, REST server, agent loop, safety, MCP
++-- alfred_tui.py         # Standalone TUI REST client (no local LLM needed)
 +-- logs/                 # Session audit logs (JSONL)
 +-- tests/
 |   +-- test_runner.py    # Python integration test suite (19 tests)
