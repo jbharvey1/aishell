@@ -1,0 +1,5 @@
+ollama>=0.6.0
+mcp>=1.26.0
+prompt_toolkit>=3.0.50
+rich>=14.0.0
+uvicorn>=0.42.0

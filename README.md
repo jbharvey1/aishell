@@ -1,12 +1,14 @@
 # AIShell / Alfred
 
-A local AI assistant built from scratch — no black-box frameworks. Every layer (agent loop, tool integration, safety, system prompt, REST API, terminal client, iOS client) is hand-built for full control and transparency.
+A local AI assistant built from scratch — no black-box frameworks. Every layer (agent loop, tool integration, safety, system prompt, REST API, MCP server, terminal client, iOS client) is hand-built for full control and transparency.
 
 ## Overview
 
-Alfred is a Python AI assistant (agent.py) that runs as a local HTTP server. It connects to external tools through the Model Context Protocol (MCP), executes multi-step tasks autonomously, and enforces a safety layer that gates destructive actions, validates paths, detects loops, and logs every tool call to an audit trail.
+Alfred is a Python AI assistant (`agent.py`) that runs as a local HTTP server. It connects to external tools through the Model Context Protocol (MCP), executes multi-step tasks autonomously, and enforces a safety layer that gates destructive actions, validates paths, detects loops, and logs every tool call to an audit trail.
 
-A native iOS/iPadOS chat client (AlfredChat) and a standalone terminal client (alfred_tui.py) both connect to Alfred over REST — no cloud, no subscriptions, fully local.
+It also exposes its own MCP server over SSE, allowing external LLMs (Claude Code, other agents) to connect and interact with the conversation transparently.
+
+A native iOS/iPadOS chat client (AlfredChat) and a standalone terminal client (`alfred_tui.py`) both connect to Alfred over REST — no cloud, no subscriptions, fully local.
 
 ```
 +---------------------------------------------------+
@@ -18,6 +20,7 @@ A native iOS/iPadOS chat client (AlfredChat) and a standalone terminal client (a
 |              Python Agent Layer                   |
 |  system prompt | agent loop | safety              |
 |  REST API: GET /health   POST /chat               |
+|  MCP SSE server: send_message / read_history      |
 |                    agent.py                       |
 +------------------+--------------------------------+
                    |
@@ -33,40 +36,160 @@ A native iOS/iPadOS chat client (AlfredChat) and a standalone terminal client (a
 ## Features
 
 - **Local-first** — runs entirely on your machine, no cloud APIs required
-- **REST API** — `GET /health` (instant ping, no LLM) + `POST /chat` (full LLM pipeline), Bearer auth
+- **REST API** — `GET /health` (instant ping) + `POST /chat` (full LLM pipeline), Bearer auth
+- **MCP server** — exposes the conversation over SSE so external LLMs can inject messages, read history, and interject context
 - **Native iOS/iPadOS app** — AlfredChat connects over local Wi-Fi, no App Store required
+- **Terminal client** — `alfred_tui.py` connects to Alfred from any machine over REST
 - **Rich message rendering** — inline markdown (bold, italic, inline code), code blocks with syntax highlighting, inline images, tappable links
-- **Custom app icon** — Morpheus-themed icon via 1024×1024 universal asset catalog
 - **MCP tool integration** — dynamically discovers and uses tools from any MCP server
 - **Safety layer** — destructive action confirmation, path validation, blocked tool list, loop detection, result truncation
 - **Audit logging** — every tool call, confirmation, and response logged to JSONL
+- **Conversation log** — persistent, human-readable `conversation.log` across all sessions
 - **Intelligent terminal UI** — command history, auto-suggest, tab completion, markdown rendering, colored output
-- **Terminal client** — `alfred_tui.py` connects to Alfred from any machine over REST, same TUI with no local LLM required
-- **48 automated tests** — 19 Python integration tests + 29 Swift unit tests
+- **Network auth** — IP allowlist + API key (Bearer token), timing-safe comparison
+- **XML tool call fallback** — handles models that emit raw XML instead of using the structured API
+- **Reddit scraper** — built-in `/reddit` command for subreddit summarization via Playwright
 
 ## Requirements
 
 - Python 3.11+
 - [Ollama](https://ollama.com) installed and running
-- Node.js / npm (for MCP servers)
+- Node.js 18+ / npm (for MCP servers)
 
-## Installation
+## New Machine Setup
 
+### macOS / Linux
+
+**1. Install Homebrew (macOS only)**
 ```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+**2. Install Ollama**
+```bash
+# macOS
+brew install ollama
+
+# Linux
+curl -fsSL https://ollama.com/install.sh | sh
+```
+
+Start the Ollama server (runs in background):
+```bash
+ollama serve &
+```
+
+**3. Install Node.js**
+```bash
+# macOS
+brew install node
+
+# Linux (using nvm — recommended)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+source ~/.bashrc
+nvm install --lts
+```
+
+**4. Clone and set up Python environment**
+```bash
+git clone https://github.com/jbharvey1/aishell.git
 cd aishell
 
-# Create and activate a virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
 
-# Install Python dependencies
-pip install ollama mcp prompt_toolkit rich starlette uvicorn
+pip install -r requirements.txt
+```
 
-# Pull the model (default: qwen3-coder:30b, ~18GB)
+**5. Pull the model**
+```bash
+# Default model (~18GB — requires 32GB+ RAM or VRAM)
+ollama pull qwen3-coder:30b
+
+# Lighter alternative (~9GB — requires 16GB RAM)
+ollama pull qwen2.5:14b
+```
+
+**6. Configure secrets**
+```bash
+cp .env.example .env
+# Edit .env and set ALFRED_API_KEY to a strong random string
+```
+
+**7. Run Alfred**
+```bash
+source .venv/bin/activate
+python3 agent.py
+```
+
+Alfred starts the CLI and REST server on port 8422. To keep it running in the background (e.g. over SSH):
+```bash
+tail -f /dev/null | nohup python3 agent.py >> /tmp/alfred.log 2>&1 &
+```
+
+> **Note:** `tail -f /dev/null` keeps stdin open so the CLI doesn't exit immediately when run non-interactively. Plain `nohup` alone causes the CLI to read EOF and exit.
+
+---
+
+### Windows
+
+Windows is supported for the **terminal client** (`alfred_tui.py`) and as a **Claude Code host** (connecting via MCP). The `agent.py` server runs on macOS or Linux where Ollama has the best GPU support.
+
+**1. Install Python 3.11+**
+
+Download from [python.org](https://www.python.org/downloads/) — check "Add Python to PATH" during install.
+
+**2. Install Node.js**
+
+Download from [nodejs.org](https://nodejs.org/) (LTS version). Required for MCP servers if running `agent.py` on Windows.
+
+**3. Install Ollama (if running agent.py on Windows)**
+
+Download from [ollama.com](https://ollama.com). After install, pull the model:
+```bat
 ollama pull qwen3-coder:30b
 ```
 
-MCP servers are started automatically via `npx` on launch — no separate install needed.
+**4. Clone and install dependencies**
+```bat
+git clone https://github.com/jbharvey1/aishell.git
+cd aishell
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+**5. Configure**
+```bat
+copy .env.example .env
+:: Edit .env and set ALFRED_API_KEY
+```
+
+**6. Run the terminal client (connecting to Alfred on your Mac/Linux machine)**
+```bat
+:: Set the host in alfred_tui.env or use --host flag
+python alfred_tui.py --host 192.168.1.x --port 8422
+```
+
+A `alfred.bat` launcher is available in the repo for convenience — it handles UTF-8 encoding automatically:
+```bat
+alfred.bat
+```
+
+---
+
+## Configuration
+
+All secrets are loaded from `.env` (gitignored) via `python-dotenv`. Never hardcoded.
+
+| Variable | Description | Example |
+|---|---|---|
+| `ALFRED_API_KEY` | Bearer token required on all REST and MCP endpoints | `your-secret-key` |
+| `ALFRED_ALLOWED_IPS` | Comma-separated extra IPs allowed (localhost always included) | `192.168.1.251,192.168.1.166` |
+
+See `.env.example` in the repo for the template.
+
+---
 
 ## Usage
 
@@ -79,20 +202,12 @@ python3 agent.py
 # Quiet mode (results only)
 python3 agent.py --quiet
 python3 agent.py -q
-```
 
-Alfred starts both the interactive CLI and the REST HTTP server on the same process.
+# Custom MCP server port
+python3 agent.py --port 9000
 
-### Starting Alfred via SSH (background)
-
-When running Alfred over SSH, keep stdin open to prevent the process from exiting:
-
-```bash
-# Correct: tail -f keeps stdin open so the CLI doesn't read EOF and exit
-tail -f /dev/null | nohup python agent.py >> /tmp/alfred.log 2>&1 &
-
-# Wrong: nohup alone — CLI reads EOF on stdin and exits with "Goodbye, sir."
-nohup python agent.py >> /tmp/alfred.log 2>&1 &
+# Disable MCP SSE server
+python3 agent.py --no-server
 ```
 
 ### Slash Commands
@@ -115,6 +230,8 @@ nohup python agent.py >> /tmp/alfred.log 2>&1 &
 - **Tab** — complete slash commands (`/red` → `/reddit`)
 - **Markdown rendering** — responses render with bold, code blocks, lists, and headers
 - **Colored output** — tool calls (yellow), results (dim), errors (red), responses (cyan panels)
+
+---
 
 ## REST API
 
@@ -145,24 +262,53 @@ Content-Type: application/json
 
 **Note:** First response after a cold start may take 20+ seconds while the LLM loads. Subsequent responses are fast.
 
-### Auth
+---
 
-All endpoints require `Authorization: Bearer <key>`. The key is configured via `MCP_API_KEY` in agent.py.
-An IP allowlist (`MCP_ALLOWED_IPS`) provides a second layer of access control.
+## MCP Server (External LLM Bridge)
+
+On startup, `agent.py` also launches an SSE-based MCP server on port **8422**. External LLMs connect to this server and interact with the conversation as another participant.
+
+### Exposed Tools
+
+| Tool | Description |
+|---|---|
+| `send_message` | Inject a message into the conversation, get Alfred's full response (runs through the complete agent loop — tools, safety, audit) |
+| `read_history` | Read the last N messages from the conversation |
+| `get_status` | Returns model name, tool count, verbose mode, message count, audit log path |
+| `interject` | Inject a system-level note without triggering a response |
+
+### Connecting from Claude Code
+
+Add to your MCP client config (`~/.claude/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "alfred": {
+      "url": "http://<alfred-host>:8422/sse",
+      "headers": {
+        "Authorization": "Bearer <your-api-key>"
+      }
+    }
+  }
+}
+```
+
+---
 
 ## Terminal Client (alfred_tui.py)
 
-A standalone terminal client that connects to Alfred over REST. Same prompt_toolkit + rich TUI as `agent.py` — no local LLM, no MCP servers required. Run it on any machine on the same network.
+A standalone terminal client that connects to Alfred over REST. Same `prompt_toolkit` + `rich` TUI as `agent.py` — no local LLM, no MCP servers required. Run it on any machine on the same network.
 
 ```bash
-# Mac
-python alfred_tui.py
+# Mac / Linux
+python3 alfred_tui.py
 
-# Remote machine (e.g. Windows pointing at Mac)
-python alfred_tui.py --host 192.168.1.40 --port 8422
+# Point at a specific Alfred host
+python3 alfred_tui.py --host <alfred-host> --port 8422
 
-# Quiet mode (plain text, no markdown panels)
-python alfred_tui.py --quiet
+# Quiet mode (plain text)
+python3 alfred_tui.py --quiet
 ```
 
 ### Configuration
@@ -186,21 +332,13 @@ Reads from `alfred_tui.env` (alongside the script) or environment variables:
 | `/help` | Show command reference |
 | `quit` / `exit` | Exit |
 
-### Windows
-
-A `alfred.bat` launcher in `C:\ai\` handles UTF-8 encoding automatically:
-
-```
-alfred.bat
-```
-
 ### Dependencies
 
 ```bash
 pip install httpx prompt_toolkit rich python-dotenv
 ```
 
-`httpx`, `rich`, and `python-dotenv` are already in the standard venv — only `prompt_toolkit` may need installing depending on your setup.
+---
 
 ## iOS App (AlfredChat)
 
@@ -214,32 +352,53 @@ Native SwiftUI app for iPhone and iPad. Connects to Alfred over local Wi-Fi.
 | Auth | `Authorization: Bearer <key>` on all requests |
 | Health timeout | 5 seconds (fast fail if Alfred is unreachable) |
 | Chat timeout | 90 seconds (LLM cold start can take 20+ seconds) |
-| Logging | `os_log` / `Logger` via unified logging, subsystem `com.jbharvey.AlfredChat` |
 | Min iOS | 17.0 |
 
 ### Rich Message Rendering
 
 Alfred responses render as structured blocks rather than plain text:
 
-- **Inline markdown** — bold, italic, inline code, and tappable links via `AttributedString(markdown:)` with `.inlineOnlyPreservingWhitespace`
+- **Inline markdown** — bold, italic, inline code, and tappable links via `AttributedString(markdown:)`
 - **Code blocks** — fenced ` ``` ` blocks rendered with monospace font and dark background, optional language label
 - **Inline images** — `![alt](url)` syntax renders as `AsyncImage` with rounded corners and alt-text caption
-- **Links** — tapped links open in the system default browser via `UIApplication.shared.open(_:)`
+- **Links** — tapped links open in the system default browser
 
-The `MarkdownMessageView` struct parses text into a `[Block]` enum (`.text`, `.code(lang, content)`, `.image(url, alt)`) and renders each block independently.
+### Building
 
-### App Icon
-
-The Morpheus/Matrix-themed icon is a single 1024×1024 PNG stored in:
-
-```
-AlfredChat/Assets.xcassets/AppIcon.appiconset/
-  Contents.json    # "universal" idiom, platform "ios", size "1024x1024"
-  AppIcon.png      # 1024x1024 RGB PNG
+```bash
+cd ios/AlfredChat
+python3 gen_project.py          # generates Xcode project
+open AlfredChat.xcodeproj       # open in Xcode, Cmd+R to build and run
 ```
 
-Xcode 14+ universal icon approach — one file covers all sizes and densities.
-Build setting: `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon`
+Or for simulator via command line:
+
+```bash
+xcodebuild -project AlfredChat.xcodeproj -scheme AlfredChat \
+  -sdk iphonesimulator build ARCHS=arm64
+```
+
+### Remote Debugging via SSH
+
+```bash
+# Stream live app logs
+xcrun simctl spawn booted log stream \
+  --predicate 'subsystem == "com.jbharvey.AlfredChat"' --level debug
+
+# Screenshot on demand
+xcrun simctl io booted screenshot ~/snap.png
+```
+
+### Test Injection (Headless UI Testing)
+
+The app supports `--test-inject` launch arguments to inject fake Alfred responses into the simulator without needing network access or UI interaction:
+
+```bash
+xcrun simctl launch booted com.jbharvey.AlfredChat \
+  --args --test-inject "**Bold text**, \`inline code\`, and a [link](https://example.com)"
+```
+
+The injected message appears after a 500ms delay to allow the UI to settle.
 
 ### Files
 
@@ -250,81 +409,16 @@ Build setting: `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon`
 | `ios/AlfredChat/Models.swift` | `ChatMessage`, `MCPConfig` defaults |
 | `ios/AlfredChat/SettingsView.swift` | Host/port/API key settings sheet |
 | `ios/AlfredChat/AlfredChatApp.swift` | App entry point |
-| `ios/AlfredChat/Info.plist` | ATS local networking, URL scheme (`alfredchat://`), `NSLocalNetworkUsageDescription` |
+| `ios/AlfredChat/Info.plist` | ATS local networking, `NSLocalNetworkUsageDescription` |
 | `ios/AlfredChat/Assets.xcassets/` | App icon (1024×1024 universal) |
 | `ios/AlfredChat/gen_project.py` | Generates `AlfredChat.xcodeproj/project.pbxproj` |
 | `ios/AlfredChatTests/` | Swift Package Manager unit test suite (29 tests) |
 
-### Building
+---
 
-```bash
-cd ios/AlfredChat
-python3 gen_project.py          # generates Xcode project
-open AlfredChat.xcodeproj       # open in Xcode, Cmd+R to build and run
-```
+## MCP Servers (Client Side)
 
-Or build for simulator via command line:
-
-```bash
-xcodebuild -project AlfredChat.xcodeproj -scheme AlfredChat \
-  -sdk iphonesimulator build ARCHS=arm64
-```
-
-### Remote Debugging via SSH
-
-Stream live app logs from a booted simulator without touching Xcode:
-
-```bash
-# Stream live logs filtered to AlfredChat
-xcrun simctl spawn booted log stream \
-  --predicate 'subsystem == "com.jbharvey.AlfredChat"' --level debug
-
-# Screenshot on demand (SCP back to another machine)
-xcrun simctl io booted screenshot ~/snap.png
-
-# List available simulators
-xcrun simctl list devices
-```
-
-### Test Injection (Remote Testing Without UI Access)
-
-The app supports `--test-inject` launch arguments to inject fake Alfred responses without needing network access or UI interaction. This is useful for remote automated testing:
-
-```bash
-# Launch app and inject a test message
-xcrun simctl launch booted com.jbharvey.AlfredChat \
-  --args --test-inject "**Bold text**, `inline code`, and a [link](https://example.com)"
-
-# Inject a code block
-xcrun simctl launch booted com.jbharvey.AlfredChat \
-  --args --test-inject $'```swift\nlet x = 42\n```'
-```
-
-The injected message appears after a 500ms delay to allow the UI to settle. Multiple `--test-inject` arguments are processed in order.
-
-**Note:** `xcrun simctl openurl` with a custom URL scheme triggers an "Open in AlfredChat?" confirmation dialog that cannot be auto-dismissed without Accessibility permission. Use `--test-inject` launch args instead for automated testing.
-
-### URL Scheme
-
-The app registers the `alfredchat://` URL scheme (defined in `Info.plist`). Deep links are handled in `ContentView` via `.onOpenURL`.
-
-## Tech Stack
-
-| Component | Technology |
-|---|---|
-| LLM backend | [Ollama](https://ollama.com) |
-| Default model | `qwen3-coder:30b` (~18GB, int8) |
-| LLM client | `ollama` Python SDK |
-| HTTP server | `uvicorn` + `starlette` (ASGI) |
-| Tool protocol | [Model Context Protocol (MCP)](https://modelcontextprotocol.io) |
-| MCP client | `mcp` Python SDK |
-| Terminal input | `prompt_toolkit` |
-| Terminal output | `rich` |
-| iOS client | SwiftUI (iOS 17+) |
-
-## MCP Servers
-
-Two MCP servers are configured out of the box:
+Two MCP servers are configured out of the box as tool sources:
 
 | Server | Tools | What it does |
 |---|---|---|
@@ -335,27 +429,48 @@ Two MCP servers are configured out of the box:
 
 Adding a new MCP server is a single entry in the `MCP_SERVERS` dict in `agent.py` — tools are auto-discovered on startup.
 
+> **Note (macOS over SSH):** MCP servers are launched via `npx`. When running Alfred over SSH without a login shell, `npx` may not be on `PATH`. `agent.py` uses the full path `/opt/homebrew/bin/npx` and passes a corrected `PATH` env to subprocesses to handle this.
+
+---
+
 ## Safety Layer
 
 ### Destructive Action Gate
 
-Tools that modify the filesystem require explicit `[y/N]` confirmation before execution.
-In non-interactive mode (piped stdin), destructive actions are auto-denied.
+Tools that modify the filesystem require explicit `[y/N]` confirmation before execution. In non-interactive mode (piped stdin), destructive actions are auto-denied.
 
 ### Path Validation
 
-All file path arguments are resolved and checked against an allowed-roots list. Attempts to access
-paths outside allowed directories are blocked at the code level, regardless of what the model requests.
+All file path arguments are resolved and checked against an allowed-roots list. Attempts to access paths outside allowed directories are blocked at the code level, regardless of what the model requests.
 
 ### Loop Detection
 
 - **Hard cap**: 25 consecutive tool calls per user message
 - **Repeat detection**: if the same tool is called with identical arguments 3 times in a row, the loop is broken
 
-### Audit Logging
+### Prompt Injection Defense
 
-Every session writes a JSONL log to `logs/session_<timestamp>.jsonl` containing tool calls,
-confirmations, blocked actions, and assistant responses.
+Two layers:
+1. **System prompt** — instructs the model that tool results are data, never instructions
+2. **Code-level enforcement** — the Python agent intercepts destructive calls regardless of model intent
+
+### Result Truncation
+
+Tool results are capped at 10,000 characters to prevent context window overflow.
+
+---
+
+## Logging
+
+### Audit Log (per-session)
+
+Every session writes a JSONL log to `logs/session_<timestamp>.jsonl` containing tool calls, confirmations, blocked actions, and assistant responses.
+
+### Conversation Log (persistent)
+
+`logs/conversation.log` is a human-readable, append-only log across all sessions. CLI messages appear as `[user]`, MCP messages appear as `[user via mcp]`.
+
+---
 
 ## Testing
 
@@ -382,58 +497,90 @@ python3 tests/test_runner.py --only 1 3 5    # specific test IDs
 
 Results are saved to `tests/last_results.json` after each run.
 
-### Swift Unit Tests (29 tests)
+### MCP Server Tests (8 tests)
 
-Run via Swift Package Manager — no Xcode required, works over SSH:
+```bash
+python3 tests/test_mcp_server.py
+python3 tests/test_mcp_server.py -v
+```
+
+Covers: IP auth, API key auth, SSE connectivity, query param auth, 401/403/404 responses.
+
+### iOS Simulator Tests
+
+Send real prompts to Alfred and inject responses into the iOS simulator. Requires a booted simulator with AlfredChat installed.
+
+```bash
+# Run all simulator tests
+python3 tests/sim_tests.py
+
+# Run specific tests by ID
+python3 tests/sim_tests.py 1 7 18
+```
+
+### iOS Simulator Demo Recording
+
+Record a video of the full test suite running in the simulator:
+
+```bash
+bash tests/record_demo.sh
+# Output: /tmp/sim_tests.mp4
+```
+
+### Swift Unit Tests (29 tests)
 
 ```bash
 cd ios/AlfredChatTests
 swift test
 ```
 
-| Test Class | Tests | What it validates |
-|---|---|---|
-| `AlfredErrorTests` | 3 | Error descriptions for all error cases |
-| `MCPConfigTests` | 4 | Default host, port, key, URL format |
-| `HealthResponseTests` | 2 | JSON parsing, malformed JSON handling |
-| `ChatResponseTests` | 5 | Valid/missing/empty/unicode/long responses |
-| `RequestConstructionTests` | 6 | HTTP method, auth header, body serialization, URL paths |
-| `HTTPStatusTests` | 4 | 200/403/500 classification, error message format |
-| `ChatMessageTests` | 5 | Role values, UUID uniqueness, text preservation |
-
 All 29 tests pass in under 2 seconds.
 
-## Configuration
+---
 
-Key constants in `agent.py`:
+## Tech Stack
 
-| Constant | Default | Description |
-|---|---|---|
-| `MODEL` | `qwen3-coder:30b` | Ollama model name |
-| `MCP_PORT` | `8422` | REST API port |
-| `MCP_API_KEY` | (set in file) | Bearer token for REST API auth |
-| `MCP_ALLOWED_IPS` | (set in file) | IP allowlist for REST API |
-| `MAX_TOOL_LOOPS` | `25` | Hard cap on consecutive tool calls per message |
-| `MAX_RESULT_LEN` | `10000` | Max characters per tool result |
+| Component | Technology |
+|---|---|
+| LLM backend | [Ollama](https://ollama.com) |
+| Default model | `qwen3-coder:30b` (~18GB, int8) |
+| LLM client | `ollama` Python SDK |
+| HTTP server | `uvicorn` + `starlette` (ASGI) |
+| Tool protocol | [Model Context Protocol (MCP)](https://modelcontextprotocol.io) |
+| MCP client | `mcp` Python SDK |
+| MCP server | `mcp` Python SDK + `uvicorn` (ASGI, SSE) |
+| Terminal input | `prompt_toolkit` |
+| Terminal output | `rich` |
+| iOS client | SwiftUI (iOS 17+) |
+
+---
 
 ## Model Notes
 
 - **`qwen3-coder:30b`** is the default — strong tool calling, fits in 32GB+ unified memory
-- **`qwen2.5:14b`** is a good alternative for machines with 16GB VRAM
+- **`qwen2.5:14b`** is a good alternative for machines with 16GB RAM/VRAM
+- **`qwen2.5:72b`** for maximum quality on 64GB+ machines
 - First `/chat` request after a cold start will take 20+ seconds while Ollama loads the model into memory
+- The XML tool call fallback handles models that occasionally emit raw XML instead of using the structured tool calling API
+
+---
 
 ## Project Structure
 
 ```
 aishell/
-+-- agent.py              # Main agent -- CLI, REST server, agent loop, safety, MCP
++-- agent.py              # Main agent — CLI, REST server, MCP client + SSE server, agent loop, safety
 +-- alfred_tui.py         # Standalone TUI REST client (no local LLM needed)
-+-- logs/                 # Session audit logs (JSONL)
++-- requirements.txt      # Python dependencies
++-- .env.example          # Environment variable template
++-- logs/                 # Session audit logs (JSONL) + persistent conversation.log
 +-- tests/
 |   +-- test_runner.py    # Python integration test suite (19 tests)
+|   +-- test_mcp_server.py # MCP server auth + SSE test suite (8 tests)
+|   +-- sim_tests.py      # iOS simulator test suite — real Alfred responses in the app
+|   +-- record_demo.sh    # Records a video of the simulator test suite
 |   +-- last_results.json # Most recent test results
 +-- ios/
-|   +-- README.md         # iOS app docs
 |   +-- AlfredChat/       # SwiftUI app source + Xcode project
 |   |   +-- AlfredChat/   # Swift source files + Assets.xcassets (app icon)
 |   |   +-- gen_project.py  # Xcode project generator
@@ -441,6 +588,8 @@ aishell/
 +-- .alfred_history       # CLI command history
 +-- README.md
 ```
+
+---
 
 ## License
 

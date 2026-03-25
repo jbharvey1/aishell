@@ -86,17 +86,22 @@ MCP_ALLOWED_IPS = {
 
 # ── MCP server configurations ──────────────────────────────────
 
+_NODE_PATH = "/opt/homebrew/bin:/usr/local/bin:" + os.environ.get("PATH", "")
+_NPX_ENV   = {**os.environ, "PATH": _NODE_PATH}
+
 MCP_SERVERS = {
     "filesystem": StdioServerParameters(
-        command="npx",
+        command="/opt/homebrew/bin/npx",
         args=[
             "-y", "@modelcontextprotocol/server-filesystem",
             os.path.expanduser("~"),
         ],
+        env=_NPX_ENV,
     ),
     "playwright": StdioServerParameters(
-        command="npx",
+        command="/opt/homebrew/bin/npx",
         args=["-y", "@playwright/mcp@latest"],
+        env=_NPX_ENV,
     ),
 }
 

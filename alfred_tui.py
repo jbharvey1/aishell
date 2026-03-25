@@ -19,15 +19,9 @@ import asyncio
 import os
 import sys
 
-if sys.platform == "win32":
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-
 try:
     from dotenv import load_dotenv
-    _here = os.path.dirname(os.path.abspath(__file__))
-    load_dotenv(os.path.join(_here, "alfred_tui.env"))
-    load_dotenv()  # also load .env from CWD if present
+    load_dotenv()
 except ImportError:
     pass
 
@@ -56,7 +50,7 @@ THEME = Theme({
     "info":   "dim cyan",
 })
 
-console = Console(theme=THEME, force_terminal=True, highlight=False)
+console = Console(theme=THEME)
 
 HISTORY_FILE = os.path.expanduser("~/.alfred_tui_history")
 
@@ -192,28 +186,20 @@ async def main():
         sys.exit(1)
 
     completer = WordCompleter(SLASH_COMMANDS, sentence=True)
-    try:
-        session = PromptSession(
-            history=FileHistory(HISTORY_FILE),
-            auto_suggest=AutoSuggestFromHistory(),
-            completer=completer,
-            complete_while_typing=False,
-            style=prompt_style,
-        )
-    except Exception:
-        session = None  # fallback to plain input()
+    session = PromptSession(
+        history=FileHistory(HISTORY_FILE),
+        auto_suggest=AutoSuggestFromHistory(),
+        completer=completer,
+        complete_while_typing=False,
+        style=prompt_style,
+    )
 
     while True:
         try:
-            if session:
-                user_input = await asyncio.get_event_loop().run_in_executor(
-                    None,
-                    lambda: session.prompt(HTML("<prompt>You: </prompt>")).strip()
-                )
-            else:
-                user_input = await asyncio.get_event_loop().run_in_executor(
-                    None, lambda: input("You: ").strip()
-                )
+            user_input = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: session.prompt(HTML("<prompt>You: </prompt>")).strip()
+            )
         except (EOFError, KeyboardInterrupt):
             console.print("\n[cyan]Goodbye, sir.[/cyan]")
             break
