@@ -26,6 +26,12 @@ import sys
 from contextlib import AsyncExitStack
 from datetime import datetime
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv optional; set env vars manually if not installed
+
 import ollama
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
