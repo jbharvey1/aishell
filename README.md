@@ -105,6 +105,9 @@ nvm install --lts
 
 **4. Clone and set up Python environment**
 ```bash
+# Linux only — install venv if not already present
+sudo apt install python3-venv  # Debian/Ubuntu
+
 git clone https://github.com/jbharvey1/aishell.git
 cd aishell
 
