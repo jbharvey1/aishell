@@ -161,14 +161,21 @@ Or via winget:
 winget install Python.Python.3.12 --source winget
 ```
 
-**2. Install Node.js**
+**2. Install Git**
+
+Download from [git-scm.com](https://git-scm.com/download/win), or:
+```bat
+winget install Git.Git --source winget
+```
+
+**3. Install Node.js**
 
 Download LTS from [nodejs.org](https://nodejs.org/), or:
 ```bat
 winget install OpenJS.NodeJS.LTS --source winget
 ```
 
-**3. Install Ollama**
+**4. Install Ollama**
 
 Download from [ollama.com](https://ollama.com), or:
 ```bat
@@ -185,7 +192,7 @@ ollama pull qwen3-coder:30b
 ollama pull qwen2.5:3b
 ```
 
-**4. Clone and install dependencies**
+**5. Clone and install dependencies**
 ```bat
 git clone https://github.com/jbharvey1/aishell.git
 cd aishell
@@ -194,13 +201,13 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-**5. Configure**
+**6. Configure**
 ```bat
 copy .env.example .env
 :: Edit .env — set ALFRED_API_KEY and optionally ALFRED_MODEL
 ```
 
-**6. Run Alfred (full server)**
+**7. Run Alfred (full server)**
 ```bat
 :: Set UTF-8 encoding for Rich terminal output
 set PYTHONIOENCODING=utf-8
@@ -217,7 +224,7 @@ A `alfred.bat` launcher is available in the repo for convenience — it handles 
 alfred.bat
 ```
 
-**6b. Or run the terminal client only (connecting to Alfred on another machine)**
+**7b. Or run the terminal client only (connecting to Alfred on another machine)**
 ```bat
 python alfred_tui.py --host 192.168.1.x --port 8422
 ```
