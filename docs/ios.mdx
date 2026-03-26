@@ -40,7 +40,7 @@ cd AlfredChatTests && swift test
 
 ```bash
 xcrun simctl spawn booted log stream \
-  --predicate 'subsystem == "com.jbharvey.AlfredChat"' --level debug
+  --predicate 'subsystem == "com.jbharvey1.AlfredChat"' --level debug
 
 xcrun simctl io booted screenshot /tmp/snap.png
 ```

@@ -57,7 +57,7 @@ struct ContentView: View {
         .task {
             await reconnect()
             // Dev/test: inject fake Alfred replies via --test-inject "markdown" launch args
-            // Usage: xcrun simctl launch booted com.jbharvey.AlfredChat --args --test-inject "**bold**"
+            // Usage: xcrun simctl launch booted com.jbharvey1.AlfredChat --args --test-inject "**bold**"
             let args = ProcessInfo.processInfo.arguments
             var i = 1
             while i < args.count {

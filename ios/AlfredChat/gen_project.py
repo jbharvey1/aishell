@@ -29,7 +29,7 @@ SOURCES = [
 ]
 # name, file_uuid, build_uuid
 
-BUNDLE_ID = "com.jbharvey.AlfredChat"
+BUNDLE_ID = "com.jbharvey1.AlfredChat"
 APP_NAME  = "AlfredChat"
 
 NL = "\n"

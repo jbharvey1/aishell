@@ -147,7 +147,7 @@ Native SwiftUI app for iPhone and iPad. Connects to Alfred over local Wi-Fi.
 | Auth | `Authorization: Bearer <key>` on all requests |
 | Health timeout | 5 seconds (fast fail if Alfred is unreachable) |
 | Chat timeout | 90 seconds (LLM cold start can take 20+ seconds) |
-| Logging | `os_log` / `Logger` via unified logging, subsystem `com.jbharvey.AlfredChat` |
+| Logging | `os_log` / `Logger` via unified logging, subsystem `com.jbharvey1.AlfredChat` |
 | Min iOS | 17.0 |
 
 ### Files
@@ -185,7 +185,7 @@ Stream live app logs from a booted simulator without touching Xcode:
 ```bash
 # Stream live logs filtered to AlfredChat
 xcrun simctl spawn booted log stream \
-  --predicate 'subsystem == "com.jbharvey.AlfredChat"' --level debug
+  --predicate 'subsystem == "com.jbharvey1.AlfredChat"' --level debug
 
 # Screenshot on demand (SCP back to Windows)
 xcrun simctl io booted screenshot ~/snap.png && scp mac:~/snap.png .

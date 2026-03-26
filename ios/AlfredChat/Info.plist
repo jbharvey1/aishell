@@ -22,7 +22,7 @@
 	<array>
 		<dict>
 			<key>CFBundleURLName</key>
-			<string>com.jbharvey.AlfredChat</string>
+			<string>com.jbharvey1.AlfredChat</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>alfredchat</string>

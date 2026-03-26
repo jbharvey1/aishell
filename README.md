@@ -439,7 +439,7 @@ xcodebuild -project AlfredChat.xcodeproj -scheme AlfredChat \
 ```bash
 # Stream live app logs
 xcrun simctl spawn booted log stream \
-  --predicate 'subsystem == "com.jbharvey.AlfredChat"' --level debug
+  --predicate 'subsystem == "com.jbharvey1.AlfredChat"' --level debug
 
 # Screenshot on demand
 xcrun simctl io booted screenshot ~/snap.png
@@ -450,7 +450,7 @@ xcrun simctl io booted screenshot ~/snap.png
 The app supports `--test-inject` launch arguments to inject fake Alfred responses into the simulator without needing network access or UI interaction:
 
 ```bash
-xcrun simctl launch booted com.jbharvey.AlfredChat \
+xcrun simctl launch booted com.jbharvey1.AlfredChat \
   --args --test-inject "**Bold text**, \`inline code\`, and a [link](https://example.com)"
 ```
 

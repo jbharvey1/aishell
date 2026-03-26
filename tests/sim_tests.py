@@ -26,7 +26,7 @@ except ImportError:
 API_KEY  = os.environ.get("ALFRED_API_KEY", "change-me")
 BASE_URL = os.environ.get("ALFRED_BASE_URL", "http://localhost:8422")
 SIM_ID   = os.environ.get("SIM_ID", "C9BC4133-902A-4BAD-9C11-CA042DCC8B96")
-BUNDLE   = "com.jbharvey.AlfredChat"
+BUNDLE   = "com.jbharvey1.AlfredChat"
 
 MD_MSG = "\n".join([
     "**[Test 18 \u00b7 Markdown Rendering]**",

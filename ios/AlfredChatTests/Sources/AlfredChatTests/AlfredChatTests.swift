@@ -9,7 +9,7 @@ import AlfredChatKit
 //
 // Remote log stream while running:
 //   xcrun simctl spawn booted log stream \
-//     --predicate 'subsystem == "com.jbharvey.AlfredChat"' --level debug
+//     --predicate 'subsystem == "com.jbharvey1.AlfredChat"' --level debug
 
 
 func makeHTTP(_ code: Int, url: String = "http://192.168.1.1:8422") -> HTTPURLResponse {

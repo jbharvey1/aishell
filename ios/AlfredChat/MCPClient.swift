@@ -6,7 +6,7 @@ import os
 // POST http://<host>:<port>/chat    → {"response": "..."}
 // Headers: Authorization: Bearer <key>, Content-Type: application/json
 
-private let log = Logger(subsystem: "com.jbharvey.AlfredChat", category: "AlfredMCPClient")
+private let log = Logger(subsystem: "com.jbharvey1.AlfredChat", category: "AlfredMCPClient")
 
 @MainActor
 final class AlfredMCPClient: ObservableObject {
