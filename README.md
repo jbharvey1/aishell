@@ -650,4 +650,4 @@ aishell/
 
 ## License
 
-Private project. Not licensed for redistribution.
+Source available — free for personal and non-commercial use. Commercial use requires a paid license. See [LICENSE](LICENSE) for details.
