@@ -63,6 +63,10 @@ THEME = Theme({
     "info": "dim cyan",
 })
 
+if sys.platform == "win32":
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 console = Console(theme=THEME)
 
 HISTORY_FILE = os.path.expanduser("~/llm/.alfred_history")
