@@ -56,6 +56,18 @@ A native iOS/iPadOS chat client (AlfredChat) and a standalone terminal client (`
 - [Ollama](https://ollama.com) installed and running
 - Node.js 18+ / npm (for MCP servers)
 
+### Hardware Recommendations
+
+| Model | RAM | Disk (OS + tools + model) | Notes |
+|-------|-----|--------------------------|-------|
+| `qwen2.5:0.5b` | 8GB+ | 40GB+ | Minimum viable — slow, basic quality |
+| `qwen2.5:3b` | 16GB+ | 50GB+ | Decent quality, usable on CPU |
+| `qwen2.5:14b` | 16GB+ VRAM or 32GB RAM | 60GB+ | Good quality, GPU recommended |
+| `qwen3-coder:30b` (default) | 32GB+ unified/VRAM | 60GB+ | Best quality, requires GPU |
+| `qwen2.5:72b` | 64GB+ | 80GB+ | Maximum quality |
+
+**GPU strongly recommended** for models 3b and above. CPU-only inference works but is very slow (minutes per response with full tool context).
+
 ## New Machine Setup
 
 ### macOS / Linux
@@ -108,7 +120,12 @@ ollama pull qwen3-coder:30b
 
 # Lighter alternative (~9GB — requires 16GB RAM)
 ollama pull qwen2.5:14b
+
+# Lightweight (~2GB — requires 8GB+ RAM, runs on CPU)
+ollama pull qwen2.5:3b
 ```
+
+See [Hardware Recommendations](#hardware-recommendations) for guidance on which model to choose.
 
 **6. Configure secrets**
 ```bash
@@ -133,21 +150,39 @@ tail -f /dev/null | nohup python3 agent.py >> /tmp/alfred.log 2>&1 &
 
 ### Windows
 
-Windows is supported for the **terminal client** (`alfred_tui.py`) and as a **Claude Code host** (connecting via MCP). The `agent.py` server runs on macOS or Linux where Ollama has the best GPU support.
+Windows is fully supported — both the **agent/server** (`agent.py`) and the **terminal client** (`alfred_tui.py`) work on Windows.
 
 **1. Install Python 3.11+**
 
 Download from [python.org](https://www.python.org/downloads/) — check "Add Python to PATH" during install.
 
+Or via winget:
+```bat
+winget install Python.Python.3.12 --source winget
+```
+
 **2. Install Node.js**
 
-Download from [nodejs.org](https://nodejs.org/) (LTS version). Required for MCP servers if running `agent.py` on Windows.
+Download LTS from [nodejs.org](https://nodejs.org/), or:
+```bat
+winget install OpenJS.NodeJS.LTS --source winget
+```
 
-**3. Install Ollama (if running agent.py on Windows)**
+**3. Install Ollama**
 
-Download from [ollama.com](https://ollama.com). After install, pull the model:
+Download from [ollama.com](https://ollama.com), or:
+```bat
+winget install Ollama.Ollama --source winget
+```
+
+> **Note:** After installing via winget, Ollama may not be on your PATH in new terminal sessions. Use the full path if needed: `%LOCALAPPDATA%\Programs\Ollama\ollama.exe`
+
+Pull a model:
 ```bat
 ollama pull qwen3-coder:30b
+
+:: Or a lighter model for machines with less RAM (see Hardware Recommendations)
+ollama pull qwen2.5:3b
 ```
 
 **4. Clone and install dependencies**
@@ -162,19 +197,35 @@ pip install -r requirements.txt
 **5. Configure**
 ```bat
 copy .env.example .env
-:: Edit .env and set ALFRED_API_KEY
+:: Edit .env — set ALFRED_API_KEY and optionally ALFRED_MODEL
 ```
 
-**6. Run the terminal client (connecting to Alfred on your Mac/Linux machine)**
+**6. Run Alfred (full server)**
 ```bat
-:: Set the host in alfred_tui.env or use --host flag
-python alfred_tui.py --host 192.168.1.x --port 8422
+:: Set UTF-8 encoding for Rich terminal output
+set PYTHONIOENCODING=utf-8
+
+:: Run with the default model
+python agent.py
+
+:: Or specify a different model
+python agent.py --model qwen2.5:3b
 ```
 
 A `alfred.bat` launcher is available in the repo for convenience — it handles UTF-8 encoding automatically:
 ```bat
 alfred.bat
 ```
+
+**6b. Or run the terminal client only (connecting to Alfred on another machine)**
+```bat
+python alfred_tui.py --host 192.168.1.x --port 8422
+```
+
+> **Windows notes:**
+> - Set `PYTHONIOENCODING=utf-8` before running to avoid Unicode errors in terminals that default to cp1252.
+> - Ollama may need to be started manually (`ollama serve`) before running `agent.py`. On macOS it runs as a background service automatically.
+> - CPU-only inference (no GPU) is functional but very slow — see [Hardware Recommendations](#hardware-recommendations).
 
 ---
 
@@ -186,6 +237,7 @@ All secrets are loaded from `.env` (gitignored) via `python-dotenv`. Never hardc
 |---|---|---|
 | `ALFRED_API_KEY` | Bearer token required on all REST and MCP endpoints | `your-secret-key` |
 | `ALFRED_ALLOWED_IPS` | Comma-separated extra IPs allowed (localhost always included) | `192.168.1.251,192.168.1.166` |
+| `ALFRED_MODEL` | Ollama model to use (default: `qwen3-coder:30b`) | `qwen2.5:14b` |
 
 See `.env.example` in the repo for the template.
 
@@ -202,6 +254,9 @@ python3 agent.py
 # Quiet mode (results only)
 python3 agent.py --quiet
 python3 agent.py -q
+
+# Use a different model
+python3 agent.py --model qwen2.5:14b
 
 # Custom MCP server port
 python3 agent.py --port 9000
@@ -429,7 +484,7 @@ Two MCP servers are configured out of the box as tool sources:
 
 Adding a new MCP server is a single entry in the `MCP_SERVERS` dict in `agent.py` — tools are auto-discovered on startup.
 
-> **Note (macOS over SSH):** MCP servers are launched via `npx`. When running Alfred over SSH without a login shell, `npx` may not be on `PATH`. `agent.py` uses the full path `/opt/homebrew/bin/npx` and passes a corrected `PATH` env to subprocesses to handle this.
+> **Note:** MCP servers are launched via `npx`. On macOS over SSH (without a login shell), `npx` may not be on `PATH` — `agent.py` uses the full path `/opt/homebrew/bin/npx` and passes a corrected `PATH` env. On Windows, `npx.cmd` is used instead. This is handled automatically via platform detection.
 
 ---
 
@@ -543,7 +598,7 @@ All 29 tests pass in under 2 seconds.
 | Component | Technology |
 |---|---|
 | LLM backend | [Ollama](https://ollama.com) |
-| Default model | `qwen3-coder:30b` (~18GB, int8) |
+| Default model | `qwen3-coder:30b` (~18GB, int8) — configurable via `ALFRED_MODEL` |
 | LLM client | `ollama` Python SDK |
 | HTTP server | `uvicorn` + `starlette` (ASGI) |
 | Tool protocol | [Model Context Protocol (MCP)](https://modelcontextprotocol.io) |
@@ -559,8 +614,12 @@ All 29 tests pass in under 2 seconds.
 
 - **`qwen3-coder:30b`** is the default — strong tool calling, fits in 32GB+ unified memory
 - **`qwen2.5:14b`** is a good alternative for machines with 16GB RAM/VRAM
+- **`qwen2.5:3b`** lightweight option for 8-16GB machines — decent quality, manageable on CPU
+- **`qwen2.5:0.5b`** minimum viable — runs anywhere but limited reasoning ability
 - **`qwen2.5:72b`** for maximum quality on 64GB+ machines
+- Change the model via `ALFRED_MODEL` env var, `--model` CLI flag, or edit `.env`
 - First `/chat` request after a cold start will take 20+ seconds while Ollama loads the model into memory
+- CPU-only inference adds significant latency — expect minutes per response with tool-heavy system prompts on models 3b+
 - The XML tool call fallback handles models that occasionally emit raw XML instead of using the structured tool calling API
 
 ---

@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Local AI agent with MCP tool integration, safety layer, and MCP server.
 
-Ollama (qwen3-coder:30b) ↔ Python agent loop ↔ MCP servers.
+Ollama ↔ Python agent loop ↔ MCP servers.
 Built-in tools + dynamically discovered MCP tools.
 Exposes an MCP server (SSE) so external LLMs can inject into the conversation.
 
 Usage:
-    python3 agent.py              # verbose mode (shows reasoning)
-    python3 agent.py --quiet      # quiet mode (results only)
-    python3 agent.py -q           # same as --quiet
-    python3 agent.py --port 8422  # custom MCP server port (default: 8422)
+    python3 agent.py                          # verbose mode (shows reasoning)
+    python3 agent.py --quiet                  # quiet mode (results only)
+    python3 agent.py -q                       # same as --quiet
+    python3 agent.py --port 8422              # custom MCP server port (default: 8422)
+    python3 agent.py --model qwen2.5:14b      # override default model
 
 Toggle during chat:
     /verbose  — switch to verbose mode
@@ -72,7 +73,7 @@ prompt_style = PTStyle.from_dict({
     "prompt": "#a78bfa bold",
 })
 
-MODEL = "qwen3-coder:30b"
+MODEL = os.environ.get("ALFRED_MODEL", "qwen3-coder:30b")
 LOG_DIR = os.path.expanduser("~/llm/logs")
 MAX_TOOL_LOOPS = 25  # hard cap on consecutive tool calls per user message
 MAX_RESULT_LEN = 10_000
@@ -86,12 +87,17 @@ MCP_ALLOWED_IPS = {
 
 # ── MCP server configurations ──────────────────────────────────
 
-_NODE_PATH = "/opt/homebrew/bin:/usr/local/bin:" + os.environ.get("PATH", "")
-_NPX_ENV   = {**os.environ, "PATH": _NODE_PATH}
+if sys.platform == "win32":
+    _NPX_CMD = "npx.cmd"
+    _NPX_ENV = {**os.environ}
+else:
+    _NODE_PATH = "/opt/homebrew/bin:/usr/local/bin:" + os.environ.get("PATH", "")
+    _NPX_CMD = "/opt/homebrew/bin/npx"
+    _NPX_ENV = {**os.environ, "PATH": _NODE_PATH}
 
 MCP_SERVERS = {
     "filesystem": StdioServerParameters(
-        command="/opt/homebrew/bin/npx",
+        command=_NPX_CMD,
         args=[
             "-y", "@modelcontextprotocol/server-filesystem",
             os.path.expanduser("~"),
@@ -99,7 +105,7 @@ MCP_SERVERS = {
         env=_NPX_ENV,
     ),
     "playwright": StdioServerParameters(
-        command="/opt/homebrew/bin/npx",
+        command=_NPX_CMD,
         args=["-y", "@playwright/mcp@latest"],
         env=_NPX_ENV,
     ),
@@ -885,6 +891,13 @@ async def main():
         idx = sys.argv.index("--port")
         if idx + 1 < len(sys.argv):
             port = int(sys.argv[idx + 1])
+
+    # Parse --model
+    global MODEL
+    if "--model" in sys.argv:
+        idx = sys.argv.index("--model")
+        if idx + 1 < len(sys.argv):
+            MODEL = sys.argv[idx + 1]
 
     no_server = "--no-server" in sys.argv
     agent = Agent(verbose=verbose)
