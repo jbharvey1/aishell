@@ -53,6 +53,7 @@ A native iOS/iPadOS chat client (AlfredChat) and a standalone terminal client (`
 ## Requirements
 
 - Python 3.11+
+- [Git](https://git-scm.com)
 - [Ollama](https://ollama.com) installed and running
 - Node.js 18+ / npm (for MCP servers)
 
@@ -127,11 +128,14 @@ ollama pull qwen2.5:3b
 
 See [Hardware Recommendations](#hardware-recommendations) for guidance on which model to choose.
 
-**6. Configure secrets**
+**6. Configure**
 ```bash
 cp .env.example .env
-# Edit .env and set ALFRED_API_KEY to a strong random string
 ```
+
+Open `.env` in an editor and set:
+- `ALFRED_API_KEY` — any password you choose (protects the REST API)
+- `ALFRED_MODEL` — the model you pulled in step 5 (e.g. `qwen2.5:14b`). Leave as `qwen3-coder:30b` if you pulled the default.
 
 **7. Run Alfred**
 ```bash
@@ -152,47 +156,42 @@ tail -f /dev/null | nohup python3 agent.py >> /tmp/alfred.log 2>&1 &
 
 Windows is fully supported — both the **agent/server** (`agent.py`) and the **terminal client** (`alfred_tui.py`) work on Windows.
 
-**1. Install Python 3.11+**
+**1. Install prerequisites**
 
-Download from [python.org](https://www.python.org/downloads/) — check "Add Python to PATH" during install.
+You need four things: Python, Git, Node.js, and Ollama. The easiest way is via winget — open a terminal and run:
 
-Or via winget:
 ```bat
 winget install Python.Python.3.12 --source winget
-```
-
-**2. Install Git**
-
-Download from [git-scm.com](https://git-scm.com/download/win), or:
-```bat
 winget install Git.Git --source winget
-```
-
-**3. Install Node.js**
-
-Download LTS from [nodejs.org](https://nodejs.org/), or:
-```bat
 winget install OpenJS.NodeJS.LTS --source winget
-```
-
-**4. Install Ollama**
-
-Download from [ollama.com](https://ollama.com), or:
-```bat
 winget install Ollama.Ollama --source winget
 ```
 
-> **Note:** After installing via winget, Ollama may not be on your PATH in new terminal sessions. Use the full path if needed: `%LOCALAPPDATA%\Programs\Ollama\ollama.exe`
+Or download installers manually: [Python](https://www.python.org/downloads/) (check "Add to PATH"), [Git](https://git-scm.com/download/win), [Node.js LTS](https://nodejs.org/), [Ollama](https://ollama.com).
 
-Pull a model:
+> **Important:** Close and reopen your terminal after installing so the new programs are on your PATH.
+
+**2. Start Ollama and pull a model**
+
+Open a terminal and start the Ollama service:
 ```bat
-ollama pull qwen3-coder:30b
-
-:: Or a lighter model for machines with less RAM (see Hardware Recommendations)
-ollama pull qwen2.5:3b
+ollama serve
 ```
 
-**5. Clone and install dependencies**
+Leave that running and open a **second terminal**. Choose a model based on your hardware (see [Hardware Recommendations](#hardware-recommendations)):
+
+```bat
+:: 16GB+ RAM with GPU — best quality (default)
+ollama pull qwen3-coder:30b
+
+:: 16GB RAM, no GPU — good balance
+ollama pull qwen2.5:3b
+
+:: 8GB RAM — lightweight, basic quality
+ollama pull qwen2.5:0.5b
+```
+
+**3. Clone and install**
 ```bat
 git clone https://github.com/jbharvey1/aishell.git
 cd aishell
@@ -201,38 +200,30 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-**6. Configure**
+**4. Configure**
 ```bat
 copy .env.example .env
-:: Edit .env — set ALFRED_API_KEY and optionally ALFRED_MODEL
 ```
 
-**7. Run Alfred (full server)**
-```bat
-:: Set UTF-8 encoding for Rich terminal output
-set PYTHONIOENCODING=utf-8
+Open `.env` in a text editor and change two things:
+- `ALFRED_API_KEY` — set to any password you choose (e.g. `mysecretkey`). This protects the REST API.
+- `ALFRED_MODEL` — set to the model you pulled in step 2 (e.g. `qwen2.5:3b`). Leave as `qwen3-coder:30b` if you pulled the default.
 
-:: Run with the default model
+**5. Run Alfred**
+```bat
 python agent.py
-
-:: Or specify a different model
-python agent.py --model qwen2.5:3b
 ```
 
-A `alfred.bat` launcher is available in the repo for convenience — it handles UTF-8 encoding automatically:
+Alfred will connect to its MCP tool servers (filesystem + browser automation), then drop you into an interactive chat. The REST API starts automatically on port 8422.
+
+> **Tip:** If you see Unicode errors in the terminal, run `set PYTHONIOENCODING=utf-8` before launching, or use `chcp 65001` to switch your terminal to UTF-8.
+
+**Connecting from another machine (terminal client only)**
+
+If Alfred is already running on another machine and you just want a chat client:
 ```bat
-alfred.bat
+python alfred_tui.py --host <alfred-ip> --port 8422
 ```
-
-**7b. Or run the terminal client only (connecting to Alfred on another machine)**
-```bat
-python alfred_tui.py --host 192.168.1.x --port 8422
-```
-
-> **Windows notes:**
-> - Set `PYTHONIOENCODING=utf-8` before running to avoid Unicode errors in terminals that default to cp1252.
-> - Ollama may need to be started manually (`ollama serve`) before running `agent.py`. On macOS it runs as a background service automatically.
-> - CPU-only inference (no GPU) is functional but very slow — see [Hardware Recommendations](#hardware-recommendations).
 
 ---
 
