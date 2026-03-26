@@ -94,10 +94,14 @@ MCP_ALLOWED_IPS = {
 if sys.platform == "win32":
     _NPX_CMD = "npx.cmd"
     _NPX_ENV = {**os.environ}
-else:
+elif sys.platform == "darwin":
     _NODE_PATH = "/opt/homebrew/bin:/usr/local/bin:" + os.environ.get("PATH", "")
     _NPX_CMD = "/opt/homebrew/bin/npx"
     _NPX_ENV = {**os.environ, "PATH": _NODE_PATH}
+else:
+    # Linux — npx is typically on PATH already
+    _NPX_CMD = "npx"
+    _NPX_ENV = {**os.environ}
 
 MCP_SERVERS = {
     "filesystem": StdioServerParameters(
