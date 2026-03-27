@@ -11,6 +11,8 @@ Usage:
     python3 agent.py -q                       # same as --quiet
     python3 agent.py --port 8422              # custom MCP server port (default: 8422)
     python3 agent.py --model qwen2.5:14b      # override default model
+    python3 agent.py --host 0.0.0.0           # listen on all interfaces (for iOS app / remote)
+    python3 agent.py --no-tls                 # disable TLS (default: self-signed HTTPS)
 
 Toggle during chat:
     /verbose  — switch to verbose mode
@@ -82,7 +84,8 @@ LOG_DIR = os.path.expanduser("~/llm/logs")
 MAX_TOOL_LOOPS = 25  # hard cap on consecutive tool calls per user message
 MAX_RESULT_LEN = 10_000
 MCP_SERVER_PORT = 8422  # port for the exposed MCP SSE server
-MCP_SERVER_HOST = "0.0.0.0"
+MCP_SERVER_HOST = os.environ.get("ALFRED_HOST", "127.0.0.1")
+TLS_CERT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "certs")
 MCP_API_KEY = os.environ.get("ALFRED_API_KEY", "change-me")
 MCP_ALLOWED_IPS = {
     "127.0.0.1",
@@ -160,6 +163,61 @@ def is_path_allowed(path: str) -> bool:
     """Check if a path falls within allowed roots."""
     resolved = os.path.realpath(os.path.expanduser(path))
     return any(resolved.startswith(os.path.realpath(root)) for root in ALLOWED_ROOTS)
+
+
+def ensure_tls_certs() -> tuple[str, str]:
+    """Generate self-signed TLS cert and key if they don't exist. Returns (certfile, keyfile)."""
+    os.makedirs(TLS_CERT_DIR, exist_ok=True)
+    certfile = os.path.join(TLS_CERT_DIR, "server.crt")
+    keyfile = os.path.join(TLS_CERT_DIR, "server.key")
+    if os.path.exists(certfile) and os.path.exists(keyfile):
+        return certfile, keyfile
+    console.print("  [info]Generating self-signed TLS certificate...[/info]")
+    try:
+        from cryptography import x509
+        from cryptography.x509.oid import NameOID
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import rsa
+        import datetime, ipaddress
+        key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        subject = issuer = x509.Name([
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "AIShell"),
+            x509.NameAttribute(NameOID.COMMON_NAME, "alfred-local"),
+        ])
+        cert = (
+            x509.CertificateBuilder()
+            .subject_name(subject)
+            .issuer_name(issuer)
+            .public_key(key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(datetime.datetime.now(datetime.timezone.utc))
+            .not_valid_after(datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=365))
+            .add_extension(
+                x509.SubjectAlternativeName([
+                    x509.DNSName("localhost"),
+                    x509.IPAddress(ipaddress.IPv4Address("127.0.0.1")),
+                    x509.IPAddress(ipaddress.IPv4Address("0.0.0.0")),
+                ]),
+                critical=False,
+            )
+            .sign(key, hashes.SHA256())
+        )
+        with open(keyfile, "wb") as f:
+            f.write(key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.TraditionalOpenSSL, serialization.NoEncryption()))
+        with open(certfile, "wb") as f:
+            f.write(cert.public_bytes(serialization.Encoding.PEM))
+        console.print(f"  [green]✓[/green] TLS cert generated: {certfile}")
+    except ImportError:
+        console.print("  [yellow]⚠[/yellow] cryptography package not installed — falling back to openssl CLI")
+        import subprocess
+        subprocess.run([
+            "openssl", "req", "-x509", "-newkey", "rsa:2048",
+            "-keyout", keyfile, "-out", certfile,
+            "-days", "365", "-nodes",
+            "-subj", "/CN=alfred-local/O=AIShell",
+        ], check=True, capture_output=True)
+        console.print(f"  [green]✓[/green] TLS cert generated: {certfile}")
+    return certfile, keyfile
 
 
 # ── Audit logger ────────────────────────────────────────────────
@@ -638,9 +696,12 @@ def _get_client_ip_from_scope(scope: dict) -> str:
 
 def _get_api_key_from_scope(scope: dict) -> str:
     """Extract API key from Authorization header or query param."""
-    # Check Authorization header
-    headers = dict(scope.get("headers", []))
-    auth = headers.get(b"authorization", b"").decode()
+    # Check Authorization header (case-insensitive lookup)
+    auth = ""
+    for name, value in scope.get("headers", []):
+        if name.lower() == b"authorization":
+            auth = value.decode()
+            break
     if auth.startswith("Bearer "):
         return auth[7:]
     # Check query string
@@ -651,7 +712,7 @@ def _get_api_key_from_scope(scope: dict) -> str:
     return ""
 
 
-async def run_mcp_server(agent: "Agent", port: int):
+async def run_mcp_server(agent: "Agent", port: int, host: str = "127.0.0.1", no_tls: bool = False):
     """Run the MCP SSE server on the given port via Starlette + uvicorn.
 
     Uses a raw ASGI middleware for auth — BaseHTTPMiddleware buffers
@@ -740,7 +801,11 @@ async def run_mcp_server(agent: "Agent", port: int):
         else:
             await _reject(send, 404, b"Not Found")
 
-    config = uvicorn.Config(asgi_app, host=MCP_SERVER_HOST, port=port, log_level="warning")
+    ssl_kwargs = {}
+    if not no_tls:
+        certfile, keyfile = ensure_tls_certs()
+        ssl_kwargs = {"ssl_certfile": certfile, "ssl_keyfile": keyfile}
+    config = uvicorn.Config(asgi_app, host=host, port=port, log_level="warning", **ssl_kwargs)
     uv_server = uvicorn.Server(config)
     await uv_server.serve()
 
@@ -907,6 +972,14 @@ async def main():
         if idx + 1 < len(sys.argv):
             MODEL = sys.argv[idx + 1]
 
+    # Parse --host
+    host = MCP_SERVER_HOST
+    if "--host" in sys.argv:
+        idx = sys.argv.index("--host")
+        if idx + 1 < len(sys.argv):
+            host = sys.argv[idx + 1]
+
+    no_tls = "--no-tls" in sys.argv
     no_server = "--no-server" in sys.argv
     agent = Agent(verbose=verbose)
 
@@ -935,10 +1008,12 @@ async def main():
     # Start MCP server in background
     mcp_task = None
     if not no_server:
-        mcp_task = asyncio.create_task(run_mcp_server(agent, port))
+        mcp_task = asyncio.create_task(run_mcp_server(agent, port, host=host, no_tls=no_tls))
         allowed = ", ".join(sorted(MCP_ALLOWED_IPS))
-        console.print(f"  [green]✓[/green] MCP server listening on [info]http://{MCP_SERVER_HOST}:{port}/sse[/info]")
-        console.print(f"    [dim]Allowed IPs: {allowed} | API key required[/dim]")
+        scheme = "http" if no_tls else "https"
+        console.print(f"  [green]✓[/green] MCP server listening on [info]{scheme}://{host}:{port}/sse[/info]")
+        tls_label = "[dim red]TLS off[/dim red]" if no_tls else "[green]TLS on[/green]"
+        console.print(f"    [dim]Allowed IPs: {allowed} | API key required | {tls_label}[/dim]")
 
     tool_count = len(agent.all_tools)
     console.print(f"\n[green]{tool_count} tools[/green] available. Type [bold]/help[/bold] for commands.\n")

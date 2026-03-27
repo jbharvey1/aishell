@@ -239,6 +239,7 @@ All secrets are loaded from `.env` (gitignored) via `python-dotenv`. Never hardc
 | `ALFRED_API_KEY` | Bearer token required on all REST and MCP endpoints | `your-secret-key` |
 | `ALFRED_ALLOWED_IPS` | Comma-separated extra IPs allowed (localhost always included) | `192.168.1.251,192.168.1.166` |
 | `ALFRED_MODEL` | Ollama model to use (default: `qwen3-coder:30b`) | `qwen2.5:14b` |
+| `ALFRED_HOST` | Bind address (default: `127.0.0.1` — localhost only) | `0.0.0.0` |
 
 See `.env.example` in the repo for the template.
 
@@ -486,6 +487,36 @@ Two MCP servers are configured out of the box as tool sources:
 Adding a new MCP server is a single entry in the `MCP_SERVERS` dict in `agent.py` — tools are auto-discovered on startup.
 
 > **Note:** MCP servers are launched via `npx`. On macOS over SSH (without a login shell), `npx` may not be on `PATH` — `agent.py` uses the full path `/opt/homebrew/bin/npx` and passes a corrected `PATH` env. On Windows, `npx.cmd` is used instead. This is handled automatically via platform detection.
+
+---
+
+## Security Model
+
+Alfred's REST API and MCP server implement defense-in-depth:
+
+| Layer | Default | Purpose |
+|-------|---------|---------|
+| **TLS** | Self-signed HTTPS | Encrypts all traffic — API keys, conversation data, tool results. Certificate auto-generated on first run. |
+| **Bind address** | `127.0.0.1` (localhost) | Only local connections by default. Set `ALFRED_HOST=0.0.0.0` or `--host 0.0.0.0` to allow remote access (iOS app, other machines). |
+| **API key** | Required | Bearer token on all endpoints. Timing-safe comparison (`hmac.compare_digest`). |
+| **IP allowlist** | `127.0.0.1`, `::1` | Second layer — even with a valid key, connections from non-allowed IPs are rejected (403). |
+| **Audit log** | Always on | Every tool call, auth attempt, and response logged to JSONL. |
+
+```bash
+# Default: localhost + HTTPS (most secure)
+python3 agent.py
+
+# Allow remote connections (e.g. for iOS app on same network)
+python3 agent.py --host 0.0.0.0
+
+# Disable TLS for local development
+python3 agent.py --no-tls
+
+# Combine: remote access without TLS (least secure, LAN only)
+python3 agent.py --host 0.0.0.0 --no-tls
+```
+
+> **Note:** The self-signed certificate will trigger browser/client warnings. For the iOS app, configure the client to trust the certificate or use `--no-tls` on a trusted local network. The `certs/` directory is gitignored — each installation generates its own certificate.
 
 ---
 
