@@ -1,5 +1,7 @@
 # AIShell / Alfred
 
+[![Follow on X](https://img.shields.io/badge/follow-%40boschzilla-black.svg?logo=x)](https://x.com/boschzilla)
+
 A local AI assistant built from scratch — no black-box frameworks. Every layer (agent loop, tool integration, safety, system prompt, REST API, MCP server, terminal client, iOS client) is hand-built for full control and transparency.
 
 ## Overview
